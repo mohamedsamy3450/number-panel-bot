@@ -1,0 +1,16 @@
+[phases.setup]
+nixPkgs = [
+    "python311", 
+    "python311Packages.pip",
+    "chromium",
+    "chromedriver"
+]
+
+[phases.install]
+commands = [
+    "python -m pip install -r requirements.txt",
+    "python -m pip install webdriver-manager"
+]
+
+[start]
+command = "python run_all.py"
