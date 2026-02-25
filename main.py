@@ -20,8 +20,8 @@ OTP_PAGE = "http://51.89.99.105/NumberPanel/agent/SMSCDRReports"
 CHEKER_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 GROUP_CHAT_IDS_STR = os.getenv("TELEGRAM_GROUP_CHAT_IDS", "")
 GROUP_CHAT_IDS = [id.strip() for id in GROUP_CHAT_IDS_STR.split(",") if id.strip()]
-USERNAME = os.getenv("LOGIN_USERNAME", "")
-PASSWORD = os.getenv("LOGIN_PASSWORD", "")
+USERNAME = os.getenv("LOGIN_USERNAME", "").strip()
+PASSWORD = os.getenv("LOGIN_PASSWORD", "").strip()
 TELEGRAM_CHANNEL_LINK = os.getenv("TELEGRAM_CHANNEL_LINK", "")
 TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "")
 
@@ -237,8 +237,18 @@ def auto_login(driver, username, password):
             time.sleep(1)
             username_el = try_find_element(driver, [(By.NAME,"username"),(By.ID,"username"),(By.NAME,"user"),(By.XPATH,"//input[@type='text']")])
             password_el = try_find_element(driver, [(By.NAME,"password"),(By.ID,"password"),(By.NAME,"pass"),(By.XPATH,"//input[@type='password']")])
-            username_el.clear(); username_el.send_keys(username)
-            password_el.clear(); password_el.send_keys(password)
+            
+            print(f"DEBUG: Username length: {len(username)}, Password length: {len(password)}")
+            
+            username_el.clear()
+            for char in username:
+                username_el.send_keys(char)
+                time.sleep(0.1)
+                
+            password_el.clear()
+            for char in password:
+                password_el.send_keys(char)
+                time.sleep(0.1)
             time.sleep(0.3)
             captcha_text=""
             try:
@@ -283,7 +293,7 @@ def auto_login(driver, username, password):
                 except:
                     pass
             else:
-                print(f"❌ Login failed: Invalid credentials detected (attempt {attempt})")
+                print(f"❌ Login failed: Invalid credentials detected (attempt {attempt}). Current URL: {driver.current_url}")
             
         except Exception as e:
             print(f"⚠️ Login attempt {attempt} failed: {e}")
