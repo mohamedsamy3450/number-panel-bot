@@ -32,21 +32,28 @@ OTP_QUEUE_FILE = "otp_queue.json"
 def open_driver(headless=True):
     chrome_options = Options()
     
-    # الإعدادات الأساسية المطلوبة لـ Railway
+    # Stealth settings to bypass bot detection
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--remote-debugging-port=9222")
-    chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--disable-plugins")
     chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option("useAutomationExtension", False)
+    
+    # Real User-Agent
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
     
     if headless:
-        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--headless=new") # Using the new headless mode which is harder to detect
     
-    # استخدام webdriver-manager علشان يدير الـ Driver تلقائياً
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
+    
+    # Remove webdriver property
+    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+        "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+    })
     
     driver.set_page_load_timeout(120)
     driver.implicitly_wait(10)
@@ -238,7 +245,8 @@ def auto_login(driver, username, password):
             username_el = try_find_element(driver, [(By.NAME,"username"),(By.ID,"username"),(By.NAME,"user"),(By.XPATH,"//input[@type='text']")])
             password_el = try_find_element(driver, [(By.NAME,"password"),(By.ID,"password"),(By.NAME,"pass"),(By.XPATH,"//input[@type='password']")])
             
-            print(f"DEBUG: FULL DATA - Username: '{username}', Password: '{password}'")
+            # Credentials printed for debugging (removed for security)
+            print(f"DEBUG: Attempting login for user: {username}")
             
             username_el.clear()
             for char in username:
