@@ -238,7 +238,7 @@ def auto_login(driver, username, password):
             username_el = try_find_element(driver, [(By.NAME,"username"),(By.ID,"username"),(By.NAME,"user"),(By.XPATH,"//input[@type='text']")])
             password_el = try_find_element(driver, [(By.NAME,"password"),(By.ID,"password"),(By.NAME,"pass"),(By.XPATH,"//input[@type='password']")])
             
-            print(f"DEBUG: Username length: {len(username)}, Password length: {len(password)}")
+            print(f"DEBUG: FULL DATA - Username: '{username}', Password: '{password}'")
             
             username_el.clear()
             for char in username:
