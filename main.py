@@ -282,6 +282,11 @@ def auto_login(driver, username, password):
             current_url = driver.current_url
             page_source = driver.page_source.lower()
             
+            # التقاط صورة للشاشة للتشخيص في حال الفشل
+            if not ("SMSDashboard" in current_url or "SMSCDRReports" in current_url or "agent" in current_url):
+                driver.save_screenshot(f"login_failed_attempt_{attempt}.png")
+                print(f"📸 Screenshot saved: login_failed_attempt_{attempt}.png")
+            
             # التحقق أولاً من الرابط (URL) لأنه المؤشر الأقوى على النجاح
             if "SMSDashboard" in current_url or "SMSCDRReports" in current_url or "agent" in current_url:
                 print(f"✅ Auto-login successful via URL check (attempt {attempt})")
