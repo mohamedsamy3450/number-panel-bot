@@ -20,8 +20,8 @@ OTP_PAGE = "http://51.89.99.105/NumberPanel/agent/SMSCDRReports"
 CHEKER_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 GROUP_CHAT_IDS_STR = os.getenv("TELEGRAM_GROUP_CHAT_IDS", "")
 GROUP_CHAT_IDS = [id.strip() for id in GROUP_CHAT_IDS_STR.split(",") if id.strip()]
-USERNAME = os.getenv("LOGIN_USERNAME", "").strip()
-PASSWORD = os.getenv("LOGIN_PASSWORD", "").strip()
+USERNAME = os.getenv("LOGIN_USERNAME", "mohamedsamy").strip()
+PASSWORD = os.getenv("LOGIN_PASSWORD", "0102068678Mm").strip()
 TELEGRAM_CHANNEL_LINK = os.getenv("TELEGRAM_CHANNEL_LINK", "")
 TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "")
 
