@@ -282,6 +282,11 @@ def auto_login(driver, username, password):
             current_url = driver.current_url
             page_source = driver.page_source.lower()
             
+            # التحقق أولاً من الرابط (URL) لأنه المؤشر الأقوى على النجاح
+            if "SMSDashboard" in current_url or "SMSCDRReports" in current_url or "agent" in current_url:
+                print(f"✅ Auto-login successful via URL check (attempt {attempt})")
+                return True
+
             # فحص رسائل الخطأ الشائعة
             error_indicators = ['invalid', 'incorrect', 'wrong', 'failed', 'error', 'خطأ', 'غير صحيح']
             has_error = any(indicator in page_source for indicator in error_indicators)
@@ -320,106 +325,133 @@ def get_otp_page_html(driver):
         time.sleep(0.3)
     except:
         pass
-    
-    # Wait longer for DataTables to load via JavaScript/AJAX
-    time.sleep(3)
-    
-    # Wait for table to have actual data rows (not just loading row)
-    max_wait = 10
-    for i in range(max_wait):
-        try:
-            # Check if table has loaded with data
-            soup = BeautifulSoup(driver.page_source, "html.parser")
-            table = soup.find("table", {"id": "dt"})
-            if table:
-                tbody = table.find("tbody")
-                if tbody:
-                    rows = tbody.find_all("tr")
-                    if rows and len(rows) > 0:
-                        first_row_tds = rows[0].find_all("td")
-                        # If first row has more than 1 column, data is loaded
-                        if len(first_row_tds) > 1:
-                            break
-        except:
-            pass
-        time.sleep(1)
-    
+        
     return driver.page_source
 
-def main_loop():
-    driver = open_driver(headless=True)
-    if not auto_login(driver, USERNAME, PASSWORD):
-        print("❌ Login failed after retries.")
-        driver.quit()
+def check_for_new_otps(driver):
+    print(f"🔍 Checking for new OTPs at {time.strftime('%Y-%m-%d %H:%M:%S')}...")
+    
+    html = get_otp_page_html(driver)
+    rows = get_sms_rows(html)
+    
+    if not rows:
+        print("ℹ️ No SMS rows found in table")
+        return
+    
+    # Load last checked OTP to avoid duplicates
+    last_otp = ""
+    if os.path.exists("last_otp_check.txt"):
+        with open("last_otp_check.txt", "r") as f:
+            last_otp = f.read().strip()
+    
+    new_rows = []
+    for row in rows:
+        # Create a unique ID for the row (date + number + sms)
+        row_id = f"{row[0]}_{row[1]}_{row[4]}"
+        if row_id == last_otp:
+            break
+        new_rows.append(row)
+    
+    if not new_rows:
+        print("ℹ️ No new OTPs found")
+        return
+    
+    print(f"✨ Found {len(new_rows)} new OTPs!")
+    
+    # Update last checked OTP (the first one in the list is the newest)
+    newest_row = new_rows[0]
+    with open("last_otp_check.txt", "w") as f:
+        f.write(f"{newest_row[0]}_{newest_row[1]}_{newest_row[4]}")
+    
+    # Process in reverse order (oldest to newest)
+    for row in reversed(new_rows):
+        date, number, cli, client, sms = row
+        
+        # 1. Send to Telegram Groups
+        message = format_message(date, number, cli, client, sms)
+        for chat_id in GROUP_CHAT_IDS:
+            send_telegram_message(chat_id, message)
+        
+        # 2. Add to OTP Queue for Number Bot
+        otp_code = extract_otp(sms)
+        if otp_code:
+            add_to_otp_queue(number, otp_code, sms)
+
+def add_to_otp_queue(number, otp_code, full_sms):
+    queue = []
+    if os.path.exists(OTP_QUEUE_FILE):
+        try:
+            with open(OTP_QUEUE_FILE, "r") as f:
+                queue = json.load(f)
+        except:
+            queue = []
+    
+    queue.append({
+        "number": number,
+        "otp": otp_code,
+        "sms": full_sms,
+        "timestamp": time.time()
+    })
+    
+    # Keep only last 50 OTPs
+    if len(queue) > 50:
+        queue = queue[-50:]
+        
+    with open(OTP_QUEUE_FILE, "w") as f:
+        json.dump(queue, f)
+
+def main():
+    print("🚀 Starting SMS Forwarder Bot...")
+    
+    if not CHEKER_BOT_TOKEN:
+        print("❌ Error: TELEGRAM_BOT_TOKEN not set")
+        return
+    
+    if not USERNAME or not PASSWORD:
+        print("❌ Error: LOGIN_USERNAME or LOGIN_PASSWORD not set")
         return
 
-    sent_ids = set()
-    print("🚀 SMS forwarding started")
-    
-    loop_count = 0
-
+    driver = None
     try:
+        driver = open_driver(headless=True)
+        
+        if not auto_login(driver, USERNAME, PASSWORD):
+            print("❌ Failed to login after multiple attempts. Exiting.")
+            return
+        
+        # Go to OTP page
+        driver.get(OTP_PAGE)
+        time.sleep(2)
+        
         while True:
-            loop_count += 1
-            html = get_otp_page_html(driver)
-            rows = get_sms_rows(html)
-            
-            # عكس ترتيب الرسائل عشان نبدأ بالأحدث (الأول في الجدول)
-            rows = list(reversed(rows))
-            
-            new_messages = 0
-            for date, number, cli, client, sms in rows:
-                # ডুপ্লিকেট প্রতিরোধের জন্য ইউনিক আইডি তৈরি
-                unique_id = f"{date}|{number}|{sms[:30]}"
-                if unique_id not in sent_ids:
-                    new_messages += 1
-                    msg = format_message(date, number, cli, client, sms)
-                    print(f"📩 New SMS #{new_messages}: {number} - {sms[:40]}...")
-                    
-                    # --- টেলিগ্রাম ইনলাইন বাটন তৈরি করা হচ্ছে ---
-                    # 1. মেইন চ্যানেল বাটন (Channel Link)
-                    # 2. নাম্বার বট বাটন (Bot User Name Link)
-                    inline_keyboard_markup = {
-                        "inline_keyboard": [
-                            [
-                                {"text": "📢 Channel", "url": TELEGRAM_CHANNEL_LINK}
-                            ],
-                            [
-                                {"text": "🤖 Get Your Number", "url": f"https://t.me/{TELEGRAM_BOT_USERNAME.lstrip('@')}"}
-                            ]
-                        ]
-                    }
-                    # --- বাটন ডেটা تৈরি শেষ ---
-                    
-                    # গ্রুপে মেসেজ পাঠানো হচ্ছে
-                    for chat_id in GROUP_CHAT_IDS:
-                        send_telegram_message(chat_id, msg, reply_markup=inline_keyboard_markup)
-                        time.sleep(0.5)
-                    
-                    # OTP ডেটা ফাইলে সংরক্ষণ করা হচ্ছে
-                    otp_data = {
-                        "number": number,
-                        "otp": extract_otp(sms),
-                        "service": detect_service(sms)
-                    }
-                    try:
-                        with open(OTP_QUEUE_FILE, "a", encoding="utf-8") as f:
-                            json.dump(otp_data, f)
-                            f.write('\n')
-                        print(f"✅ OTP data queued for number: {number}")
-                    except Exception as e:
-                        print(f"⚠️ Failed to write to OTP file: {e}")
-                    
-                    sent_ids.add(unique_id)
-            
-            if new_messages > 0:
-                print(f"✅ Sent {new_messages} new messages to Telegram")
+            try:
+                # Check if still logged in (URL should not be login page)
+                if "login" in driver.current_url.lower():
+                    print("⚠️ Session expired, re-logging in...")
+                    if not auto_login(driver, USERNAME, PASSWORD):
+                        print("❌ Re-login failed. Waiting for next cycle.")
+                        time.sleep(60)
+                        continue
+                    driver.get(OTP_PAGE)
+                    time.sleep(2)
+                
+                check_for_new_otps(driver)
+            except Exception as e:
+                print(f"⚠️ Error in main loop: {e}")
+                # Try to recover by going back to OTP page
+                try:
+                    driver.get(OTP_PAGE)
+                    time.sleep(5)
+                except:
+                    pass
             
             time.sleep(POLL_INTERVAL_SECONDS)
+            
     except KeyboardInterrupt:
-        print("❌ Stopped by user.")
+        print("\n👋 Bot stopped by user")
     finally:
-        driver.quit()
+        if driver:
+            driver.quit()
 
 if __name__ == "__main__":
-    main_loop()
+    main()
