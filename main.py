@@ -29,7 +29,7 @@ TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "")
 
 POLL_INTERVAL_SECONDS = 20.0
 MAX_LOGIN_RETRIES = 5
-OTP_QUEUE_FILE = "otp_queue.json"
+SENT_MESSAGES_FILE = "sent_messages.json" # تم التغيير من txt إلى json لتتبع أفضل
 
 def open_driver(headless=True):
     chrome_options = Options()
@@ -177,7 +177,7 @@ def auto_login(driver, username, password):
             driver.get(LOGIN_PAGE)
             time.sleep(random.uniform(2, 4))
             
-            # ✅ تحديث محددات البحث عن حقول الإدخال
+            # Find elements
             user_el = try_find_element(driver, [
                 (By.XPATH, "//input[@placeholder='Enter Your Username']"),
                 (By.NAME, "username"),
@@ -204,7 +204,6 @@ def auto_login(driver, username, password):
                 captcha_text = lbl.text.strip()
             except:
                 try:
-                    # محاولة البحث عن النص في صفحة الويب
                     page_text = driver.page_source
                     m = re.search(r'What is (-?\d+\s*[\+\-\*/xX]\s*-?\d+)', page_text)
                     if m: captcha_text = m.group(1)
@@ -214,7 +213,6 @@ def auto_login(driver, username, password):
             captcha_answer = parse_simple_math(captcha_text)
             if captcha_answer is not None:
                 try:
-                    # ✅ تحديث محددات البحث عن حقل الكابتشا
                     cap_input = try_find_element(driver, [
                         (By.XPATH, "//input[@placeholder='Answer']"),
                         (By.NAME, "capt"),
@@ -222,10 +220,10 @@ def auto_login(driver, username, password):
                     ], timeout=3)
                     human_type(cap_input, str(captcha_answer))
                     print(f"✅ Captcha solved: {captcha_text} = {captcha_answer}")
-                except Exception as e:
-                    print(f"⚠️ Captcha input not found: {e}")
+                except:
+                    print("⚠️ Captcha input not found")
             
-            # ✅ تحديث محددات البحث عن زر تسجيل الدخول
+            # Click Login
             login_btn = try_find_element(driver, [
                 (By.XPATH, "//input[@type='submit']"),
                 (By.XPATH, "//input[@value='Sign In']"),
@@ -252,6 +250,20 @@ def auto_login(driver, username, password):
         time.sleep(random.uniform(3, 6))
     return False
 
+def load_sent_messages():
+    if os.path.exists(SENT_MESSAGES_FILE):
+        try:
+            with open(SENT_MESSAGES_FILE, "r") as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+def save_sent_messages(sent_list):
+    # نحتفظ بآخر 100 رسالة فقط لتوفير المساحة
+    with open(SENT_MESSAGES_FILE, "w") as f:
+        json.dump(sent_list[-100:], f)
+
 def check_for_new_otps(driver):
     try:
         driver.get(OTP_PAGE)
@@ -260,25 +272,32 @@ def check_for_new_otps(driver):
         rows = get_sms_rows(html)
         if not rows: return
         
-        last_otp = ""
-        if os.path.exists("last_otp_check.txt"):
-            with open("last_otp_check.txt", "r") as f: last_otp = f.read().strip()
+        sent_messages = load_sent_messages()
         
         new_rows = []
         for row in rows:
+            # إنشاء معرف فريد يجمع بين الوقت والرقم ونص الرسالة
             row_id = f"{row[0]}_{row[1]}_{row[4]}"
-            if row_id == last_otp: break
-            new_rows.append(row)
+            if row_id in sent_messages:
+                continue
+            new_rows.append((row, row_id))
         
         if not new_rows: return
         
         print(f"✨ Found {len(new_rows)} new OTPs!")
-        with open("last_otp_check.txt", "w") as f:
-            f.write(f"{new_rows[0][0]}_{new_rows[0][1]}_{new_rows[0][4]}")
         
-        for row in reversed(new_rows):
-            msg = format_message(*row)
-            for cid in GROUP_CHAT_IDS: send_telegram_message(cid, msg)
+        # إرسال الرسائل من الأقدم إلى الأحدث
+        for row_data, row_id in reversed(new_rows):
+            msg = format_message(*row_data)
+            success = False
+            for cid in GROUP_CHAT_IDS:
+                if send_telegram_message(cid, msg):
+                    success = True
+            
+            if success:
+                sent_messages.append(row_id)
+        
+        save_sent_messages(sent_messages)
             
     except Exception as e:
         print(f"⚠️ Error checking OTPs: {e}")
