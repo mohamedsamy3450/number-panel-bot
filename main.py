@@ -24,12 +24,12 @@ GROUP_CHAT_IDS_STR = os.getenv("TELEGRAM_GROUP_CHAT_IDS", "")
 GROUP_CHAT_IDS = [id.strip() for id in GROUP_CHAT_IDS_STR.split(",") if id.strip()]
 USERNAME = os.getenv("LOGIN_USERNAME", "Salahalnajjar1").strip()
 PASSWORD = os.getenv("LOGIN_PASSWORD", "A&NaS$").strip()
-TELEGRAM_CHANNEL_LINK = os.getenv("TELEGRAM_CHANNEL_LINK", "")
-TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "")
+TELEGRAM_CHANNEL_LINK = os.getenv("TELEGRAM_CHANNEL_LINK", "https://t.me/your_channel") # رابط القناة الافتراضي
+TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "your_bot") # يوزر البوت الافتراضي
 
 POLL_INTERVAL_SECONDS = 20.0
 MAX_LOGIN_RETRIES = 5
-SENT_MESSAGES_FILE = "sent_messages.json" # تم التغيير من txt إلى json لتتبع أفضل
+SENT_MESSAGES_FILE = "sent_messages.json"
 
 def open_driver(headless=True):
     chrome_options = Options()
@@ -260,7 +260,6 @@ def load_sent_messages():
     return []
 
 def save_sent_messages(sent_list):
-    # نحتفظ بآخر 100 رسالة فقط لتوفير المساحة
     with open(SENT_MESSAGES_FILE, "w") as f:
         json.dump(sent_list[-100:], f)
 
@@ -276,7 +275,6 @@ def check_for_new_otps(driver):
         
         new_rows = []
         for row in rows:
-            # إنشاء معرف فريد يجمع بين الوقت والرقم ونص الرسالة
             row_id = f"{row[0]}_{row[1]}_{row[4]}"
             if row_id in sent_messages:
                 continue
@@ -286,12 +284,24 @@ def check_for_new_otps(driver):
         
         print(f"✨ Found {len(new_rows)} new OTPs!")
         
-        # إرسال الرسائل من الأقدم إلى الأحدث
+        # إعداد الأزرار الشفافة
+        bot_link = f"https://t.me/{TELEGRAM_BOT_USERNAME.replace('@', '')}"
+        channel_link = TELEGRAM_CHANNEL_LINK if TELEGRAM_CHANNEL_LINK.startswith("http") else f"https://t.me/{TELEGRAM_CHANNEL_LINK.replace('@', '')}"
+        
+        reply_markup = {
+            "inline_keyboard": [
+                [
+                    {"text": "🤖 Bot", "url": bot_link},
+                    {"text": "📢 Channel", "url": channel_link}
+                ]
+            ]
+        }
+        
         for row_data, row_id in reversed(new_rows):
             msg = format_message(*row_data)
             success = False
             for cid in GROUP_CHAT_IDS:
-                if send_telegram_message(cid, msg):
+                if send_telegram_message(cid, msg, reply_markup=reply_markup):
                     success = True
             
             if success:
