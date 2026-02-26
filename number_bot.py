@@ -9,6 +9,7 @@ import io
 # Configuration
 BOT_TOKEN = os.getenv("NUMBER_BOT_TOKEN", "")
 ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "0"))
+OTP_GROUP_LINK = os.getenv("OTP_GROUP_LINK", "https://t.me/+QTWTG1P443I5YmJk")
 OTP_QUEUE_FILE = "otp_queue.json"
 USER_ASSIGNMENTS_FILE = "user_assignments.json"
 COUNTRIES_FILE = "countries.json"
@@ -654,7 +655,7 @@ def handle_callback(callback_query):
                         "inline_keyboard": [
                             [{"text": "🔄 Change Number", "callback_data": "change_number"}],
                             [{"text": "🌍 Change Country", "callback_data": "change_country"}],
-                            [{"text": "📱 OTP Group", "url": "https://t.me/+QTWTG1P443I5YmJk"}]
+                            [{"text": "📱 OTP Group", "url": OTP_GROUP_LINK}]
                         ]
                     }
                 )
@@ -678,7 +679,7 @@ def handle_callback(callback_query):
                 "inline_keyboard": [
                     [{"text": "🔄 Change Number", "callback_data": "change_number"}],
                     [{"text": "🌍 Change Country", "callback_data": "change_country"}],
-                    [{"text": "📱 OTP Group", "url": "https://t.me/+QTWTG1P443I5YmJk"}]
+                    [{"text": "📱 OTP Group", "url": OTP_GROUP_LINK}]
                 ]
             }
             
