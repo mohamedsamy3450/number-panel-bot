@@ -17,6 +17,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 # ====================== Configuration ======================
 LOGIN_PAGE = "https://imssms.org/login"
 OTP_PAGE = "https://imssms.org/agent/SMSCDRReports"
+OTP_QUEUE_FILE = "otp_queue.json"
 
 # Get credentials from environment variables
 CHEKER_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -298,11 +299,27 @@ def check_for_new_otps(driver):
         }
         
         for row_data, row_id in reversed(new_rows):
+            date, number, cli, client, sms = row_data
             msg = format_message(*row_data)
             success = False
             for cid in GROUP_CHAT_IDS:
                 if send_telegram_message(cid, msg, reply_markup=reply_markup):
                     success = True
+            
+            # ✅ Add to OTP queue for Number Bot
+            otp_code = extract_otp(sms)
+            if otp_code:
+                try:
+                    with open(OTP_QUEUE_FILE, "a", encoding="utf-8") as f:
+                        json_line = json.dumps({
+                            "number": number,
+                            "otp": otp_code,
+                            "service": cli if cli and cli.strip() and cli != "0" else "Unknown",
+                            "timestamp": time.time()
+                        })
+                        f.write(json_line + "\n")
+                except Exception as e:
+                    print(f"⚠️ Error writing to OTP queue: {e}")
             
             if success:
                 sent_messages.append(row_id)

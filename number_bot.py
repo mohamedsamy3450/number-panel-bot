@@ -683,9 +683,13 @@ def handle_callback(callback_query):
                 ]
             }
             
+            # Delete selection message and send new one with number
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/deleteMessage"
+            requests.post(url, json={"chat_id": chat_id, "message_id": message_id}, timeout=5)
+
             send_message(
                 chat_id,
-                f"{flag} <b>{country} Number Assigned:</b>\n+{number}\n\n⏳ Waiting for OTP...",
+                f"{flag} <b>{country} Number Assigned:</b>\n<code>+{number}</code>\n\n⏳ Waiting for OTP...",
                 reply_markup=keyboard
             )
             answer_callback(query_id, f"✅ {country} number assigned!")
